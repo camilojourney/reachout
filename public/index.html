@@ -1027,6 +1027,14 @@
     </div>
 
     <script>
+        // HTML escape helper to prevent XSS
+        function escapeHtml(text) {
+            if (text === null || text === undefined) return '';
+            const div = document.createElement('div');
+            div.textContent = String(text);
+            return div.innerHTML;
+        }
+
         // API helper
         async function api(endpoint, options = {}) {
             const res = await fetch(`/api${endpoint}`, {
@@ -1120,9 +1128,9 @@
                     document.getElementById(`count-${status}`).textContent = count;
                     
                     container.innerHTML = pipeline[status].map(i => `
-                        <div class="pipeline-card" onclick="viewInterview(${i.id})">
-                            <h4>${i.contact_name}</h4>
-                            <div class="company">${i.contact_company || ''} ${i.contact_title ? '• ' + i.contact_title : ''}</div>
+                        <div class="pipeline-card" onclick="viewInterview(${parseInt(i.id)})">
+                            <h4>${escapeHtml(i.contact_name)}</h4>
+                            <div class="company">${escapeHtml(i.contact_company) || ''} ${i.contact_title ? '• ' + escapeHtml(i.contact_title) : ''}</div>
                             <div class="date">${status === 'scheduled' ? formatDateTime(i.scheduled_at) : formatDate(i.created_at)}</div>
                         </div>
                     `).join('') || '<div class="empty-state"><p>No interviews</p></div>';
@@ -1173,18 +1181,19 @@
                 if (search) endpoint += `search=${encodeURIComponent(search)}&`;
                 if (type) endpoint += `connection_type=${type}&`;
                 
-                const contacts = await api(endpoint);
+                const response = await api(endpoint);
+                const contacts = response.data || response; // Handle paginated response
                 
                 document.getElementById('contacts-table').innerHTML = contacts.length ? contacts.map(c => `
                     <tr>
-                        <td><strong>${c.name}</strong></td>
-                        <td>${c.company || '-'}</td>
-                        <td>${c.title || '-'}</td>
-                        <td><span class="badge badge-${c.connection_type}">${c.connection_type}</span></td>
+                        <td><strong>${escapeHtml(c.name)}</strong></td>
+                        <td>${escapeHtml(c.company) || '-'}</td>
+                        <td>${escapeHtml(c.title) || '-'}</td>
+                        <td><span class="badge badge-${escapeHtml(c.connection_type)}">${escapeHtml(c.connection_type)}</span></td>
                         <td><div class="strength">${renderStrength(c.relationship_strength)}</div></td>
                         <td>
-                            <button class="btn-secondary btn-small" onclick="editContact(${c.id})">Edit</button>
-                            <button class="btn-danger btn-small" onclick="deleteContact(${c.id})">Delete</button>
+                            <button class="btn-secondary btn-small" onclick="editContact(${parseInt(c.id)})">Edit</button>
+                            <button class="btn-danger btn-small" onclick="deleteContact(${parseInt(c.id)})">Delete</button>
                         </td>
                     </tr>
                 `).join('') : '<tr><td colspan="6" class="empty-state">No contacts yet. Add your first contact!</td></tr>';
@@ -1267,18 +1276,19 @@
         // ========== INTERVIEWS ==========
         async function loadInterviews() {
             try {
-                const interviews = await api('/interviews');
+                const response = await api('/interviews');
+                const interviews = response.data || response; // Handle paginated response
                 
                 document.getElementById('interviews-table').innerHTML = interviews.length ? interviews.map(i => `
                     <tr>
-                        <td><strong>${i.contact_name}</strong></td>
-                        <td>${i.contact_company || '-'}</td>
-                        <td><span class="badge badge-${i.status === 'completed' ? 'referral' : i.status === 'scheduled' ? 'alumni' : 'cold'}">${i.status}</span></td>
-                        <td>${i.location}</td>
+                        <td><strong>${escapeHtml(i.contact_name)}</strong></td>
+                        <td>${escapeHtml(i.contact_company) || '-'}</td>
+                        <td><span class="badge badge-${escapeHtml(i.status) === 'completed' ? 'referral' : escapeHtml(i.status) === 'scheduled' ? 'alumni' : 'cold'}">${escapeHtml(i.status)}</span></td>
+                        <td>${escapeHtml(i.location)}</td>
                         <td>${formatDateTime(i.scheduled_at)}</td>
                         <td>
-                            <button class="btn-secondary btn-small" onclick="editInterview(${i.id})">Edit</button>
-                            <button class="btn-danger btn-small" onclick="deleteInterview(${i.id})">Delete</button>
+                            <button class="btn-secondary btn-small" onclick="editInterview(${parseInt(i.id)})">Edit</button>
+                            <button class="btn-danger btn-small" onclick="deleteInterview(${parseInt(i.id)})">Delete</button>
                         </td>
                     </tr>
                 `).join('') : '<tr><td colspan="6" class="empty-state">No interviews yet. Schedule your first one!</td></tr>';
@@ -1288,11 +1298,12 @@
         }
 
         async function loadContactsDropdown(selectId) {
-            const contacts = await api('/contacts');
+            const response = await api('/contacts');
+            const contacts = response.data || response; // Handle paginated response
             const select = document.getElementById(selectId);
             const currentVal = select.value;
             select.innerHTML = '<option value="">Select a contact...</option>' + 
-                contacts.map(c => `<option value="${c.id}">${c.name}${c.company ? ' (' + c.company + ')' : ''}</option>`).join('');
+                contacts.map(c => `<option value="${parseInt(c.id)}">${escapeHtml(c.name)}${c.company ? ' (' + escapeHtml(c.company) + ')' : ''}</option>`).join('');
             select.value = currentVal;
         }
 
@@ -1366,18 +1377,19 @@
         // ========== OUTREACH ==========
         async function loadOutreach() {
             try {
-                const records = await api('/outreach');
+                const response = await api('/outreach');
+                const records = response.data || response; // Handle paginated response
                 
                 document.getElementById('outreach-table').innerHTML = records.length ? records.map(o => `
                     <tr>
-                        <td><strong>${o.contact_name}</strong></td>
-                        <td><span class="badge badge-${o.type === 'thank_you' ? 'referral' : o.type === 'follow_up' ? 'alumni' : 'cold'}">${o.type.replace('_', ' ')}</span></td>
-                        <td>${o.channel}</td>
+                        <td><strong>${escapeHtml(o.contact_name)}</strong></td>
+                        <td><span class="badge badge-${escapeHtml(o.type) === 'thank_you' ? 'referral' : escapeHtml(o.type) === 'follow_up' ? 'alumni' : 'cold'}">${escapeHtml(o.type).replace('_', ' ')}</span></td>
+                        <td>${escapeHtml(o.channel)}</td>
                         <td>${formatDateTime(o.sent_at)}</td>
                         <td>${o.response_received ? '✅ Yes' : '⏳ Pending'}</td>
                         <td>
-                            <button class="btn-secondary btn-small" onclick="editOutreach(${o.id})">Edit</button>
-                            <button class="btn-danger btn-small" onclick="deleteOutreach(${o.id})">Delete</button>
+                            <button class="btn-secondary btn-small" onclick="editOutreach(${parseInt(o.id)})">Edit</button>
+                            <button class="btn-danger btn-small" onclick="deleteOutreach(${parseInt(o.id)})">Delete</button>
                         </td>
                     </tr>
                 `).join('') : '<tr><td colspan="6" class="empty-state">No outreach logged yet.</td></tr>';
