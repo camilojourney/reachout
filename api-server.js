@@ -13,7 +13,12 @@ const {
     validateContact,
     validateInterview,
     validatePrepNote,
-    validateOutreach
+    validateOutreach,
+    VALID_CONNECTION_TYPES,
+    VALID_INTERVIEW_STATUSES,
+    VALID_PREP_NOTE_TYPES,
+    VALID_OUTREACH_TYPES,
+    VALID_CHANNELS
 } = require('./lib/validation');
 
 const app = express();
@@ -21,6 +26,18 @@ const PORT = process.env.PORT || 3458;
 
 // Middleware
 app.use(express.json({ limit: '1mb' }));
+
+// CORS headers for API routes
+app.use('/api', (req, res, next) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    if (req.method === 'OPTIONS') {
+        return res.status(204).send();
+    }
+    next();
+});
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Request ID middleware
@@ -101,8 +118,7 @@ app.get('/api/contacts', (req, res) => {
             params.push(company);
         }
         if (connection_type) {
-            const validTypes = ['alumni', 'referral', 'cold', 'friend', 'colleague', 'other'];
-            if (validTypes.includes(connection_type)) {
+            if (VALID_CONNECTION_TYPES.includes(connection_type)) {
                 whereSql += ' AND connection_type = ?';
                 params.push(connection_type);
             }
@@ -252,8 +268,7 @@ app.get('/api/interviews', (req, res) => {
         const params = [];
 
         if (status) {
-            const validStatuses = ['requested', 'scheduled', 'completed', 'cancelled'];
-            if (validStatuses.includes(status)) {
+            if (VALID_INTERVIEW_STATUSES.includes(status)) {
                 whereSql += ' AND i.status = ?';
                 params.push(status);
             }
@@ -452,8 +467,7 @@ app.get('/api/prep-notes', (req, res) => {
             }
         }
         if (type) {
-            const validTypes = ['question', 'research', 'insight'];
-            if (validTypes.includes(type)) {
+            if (VALID_PREP_NOTE_TYPES.includes(type)) {
                 whereSql += ' AND type = ?';
                 params.push(type);
             }
@@ -533,9 +547,8 @@ app.put('/api/prep-notes/:id', (req, res) => {
         // For updates, type and content are optional - validate what's provided
         const errors = [];
         if (req.body.type !== undefined) {
-            const validTypes = ['question', 'research', 'insight'];
-            if (!validTypes.includes(req.body.type)) {
-                errors.push(`Type must be one of: ${validTypes.join(', ')}`);
+            if (!VALID_PREP_NOTE_TYPES.includes(req.body.type)) {
+                errors.push(`Type must be one of: ${VALID_PREP_NOTE_TYPES.join(', ')}`);
             }
         }
         if (req.body.content !== undefined && (typeof req.body.content !== 'string' || req.body.content.trim() === '')) {
@@ -612,8 +625,7 @@ app.get('/api/outreach', (req, res) => {
             }
         }
         if (type) {
-            const validTypes = ['initial', 'follow_up', 'thank_you'];
-            if (validTypes.includes(type)) {
+            if (VALID_OUTREACH_TYPES.includes(type)) {
                 whereSql += ' AND o.type = ?';
                 params.push(type);
             }
@@ -711,14 +723,12 @@ app.put('/api/outreach/:id', (req, res) => {
 
         // Validate update fields
         const errors = [];
-        const validTypes = ['initial', 'follow_up', 'thank_you'];
-        const validChannels = ['email', 'linkedin', 'phone', 'other'];
 
-        if (req.body.type !== undefined && !validTypes.includes(req.body.type)) {
-            errors.push(`Type must be one of: ${validTypes.join(', ')}`);
+        if (req.body.type !== undefined && !VALID_OUTREACH_TYPES.includes(req.body.type)) {
+            errors.push(`Type must be one of: ${VALID_OUTREACH_TYPES.join(', ')}`);
         }
-        if (req.body.channel !== undefined && !validChannels.includes(req.body.channel)) {
-            errors.push(`Channel must be one of: ${validChannels.join(', ')}`);
+        if (req.body.channel !== undefined && !VALID_CHANNELS.includes(req.body.channel)) {
+            errors.push(`Channel must be one of: ${VALID_CHANNELS.join(', ')}`);
         }
         if (errors.length > 0) {
             return validationError(res, errors);
