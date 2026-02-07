@@ -40,12 +40,24 @@ app.use((req, res, next) => {
     next();
 });
 
+// JSON parse error handler
+app.use((err, req, res, next) => {
+    if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
+        return res.status(400).json({
+            error: 'Invalid JSON',
+            details: 'Request body contains malformed JSON',
+            requestId: req.requestId
+        });
+    }
+    next(err);
+});
+
 // Error handling helper
 function handleError(res, error, message = 'Internal server error', requestId = '') {
     console.error(`[${requestId}] ${message}:`, error.message);
+    // Don't leak internal error details to clients
     res.status(500).json({
         error: message,
-        details: error.message,
         requestId
     });
 }
@@ -226,12 +238,18 @@ app.get('/api/interviews', (req, res) => {
         const params = [];
 
         if (status) {
-            sql += ' AND i.status = ?';
-            params.push(status);
+            const validStatuses = ['requested', 'scheduled', 'completed', 'cancelled'];
+            if (validStatuses.includes(status)) {
+                sql += ' AND i.status = ?';
+                params.push(status);
+            }
         }
         if (contact_id) {
-            sql += ' AND i.contact_id = ?';
-            params.push(parseInt(contact_id, 10));
+            const parsedId = parseInt(contact_id, 10);
+            if (!isNaN(parsedId) && parsedId > 0) {
+                sql += ' AND i.contact_id = ?';
+                params.push(parsedId);
+            }
         }
 
         sql += ' ORDER BY i.created_at DESC';
@@ -399,12 +417,18 @@ app.get('/api/prep-notes', (req, res) => {
         const params = [];
 
         if (interview_id) {
-            sql += ' AND interview_id = ?';
-            params.push(parseInt(interview_id, 10));
+            const parsedId = parseInt(interview_id, 10);
+            if (!isNaN(parsedId) && parsedId > 0) {
+                sql += ' AND interview_id = ?';
+                params.push(parsedId);
+            }
         }
         if (type) {
-            sql += ' AND type = ?';
-            params.push(type);
+            const validTypes = ['question', 'research', 'insight'];
+            if (validTypes.includes(type)) {
+                sql += ' AND type = ?';
+                params.push(type);
+            }
         }
 
         sql += ' ORDER BY created_at DESC';
@@ -551,12 +575,18 @@ app.get('/api/outreach', (req, res) => {
         const params = [];
 
         if (contact_id) {
-            sql += ' AND o.contact_id = ?';
-            params.push(parseInt(contact_id, 10));
+            const parsedId = parseInt(contact_id, 10);
+            if (!isNaN(parsedId) && parsedId > 0) {
+                sql += ' AND o.contact_id = ?';
+                params.push(parsedId);
+            }
         }
         if (type) {
-            sql += ' AND o.type = ?';
-            params.push(type);
+            const validTypes = ['initial', 'follow_up', 'thank_you'];
+            if (validTypes.includes(type)) {
+                sql += ' AND o.type = ?';
+                params.push(type);
+            }
         }
 
         sql += ' ORDER BY o.sent_at DESC';
@@ -825,6 +855,24 @@ app.get('/api/stats', (req, res) => {
 // Health check
 app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', timestamp: now() });
+});
+
+// 404 handler for API routes
+app.use('/api', (req, res) => {
+    res.status(404).json({
+        error: 'Not found',
+        details: `Route ${req.method} ${req.path} does not exist`,
+        requestId: req.requestId
+    });
+});
+
+// Global error handler
+app.use((err, req, res, _next) => {
+    console.error(`[${req.requestId}] Unhandled error:`, err.message);
+    res.status(500).json({
+        error: 'Internal server error',
+        requestId: req.requestId
+    });
 });
 
 // Graceful shutdown
