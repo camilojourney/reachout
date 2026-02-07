@@ -728,8 +728,8 @@ app.get('/api/stats', (req, res) => {
             outreach: {
                 total: db.prepare('SELECT COUNT(*) as count FROM outreach').get().count,
                 response_rate: (() => {
-                    const total = db.prepare('SELECT COUNT(*) as count FROM outreach WHERE type = "initial"').get().count;
-                    const responded = db.prepare('SELECT COUNT(*) as count FROM outreach WHERE type = "initial" AND response_received = 1').get().count;
+                    const total = db.prepare("SELECT COUNT(*) as count FROM outreach WHERE type = 'initial'").get().count;
+                    const responded = db.prepare("SELECT COUNT(*) as count FROM outreach WHERE type = 'initial' AND response_received = 1").get().count;
                     return total > 0 ? Math.round((responded / total) * 100) : 0;
                 })(),
                 by_channel: db.prepare(`
@@ -740,7 +740,7 @@ app.get('/api/stats', (req, res) => {
             },
             prep_notes: {
                 total: db.prepare('SELECT COUNT(*) as count FROM prep_notes').get().count,
-                insights: db.prepare('SELECT COUNT(*) as count FROM prep_notes WHERE type = "insight"').get().count
+                insights: db.prepare("SELECT COUNT(*) as count FROM prep_notes WHERE type = 'insight'").get().count
             }
         };
         
