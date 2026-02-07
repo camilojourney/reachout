@@ -142,15 +142,17 @@ describe('API Tests', () => {
             const res = await request('GET', '/api/contacts');
 
             assert.strictEqual(res.status, 200);
-            assert.ok(Array.isArray(res.data));
-            assert.ok(res.data.length > 0);
+            assert.ok(Array.isArray(res.data.data));
+            assert.ok(res.data.data.length > 0);
+            assert.ok(res.data.pagination);
+            assert.ok(typeof res.data.pagination.total === 'number');
         });
 
         it('GET /api/contacts with search should filter', async () => {
             const res = await request('GET', '/api/contacts?search=Jane');
 
             assert.strictEqual(res.status, 200);
-            assert.ok(res.data.some(c => c.name === 'Jane Smith'));
+            assert.ok(res.data.data.some(c => c.name === 'Jane Smith'));
         });
 
         it('GET /api/contacts/:id should get single contact', async () => {
@@ -242,7 +244,8 @@ describe('API Tests', () => {
             const res = await request('GET', '/api/interviews');
 
             assert.strictEqual(res.status, 200);
-            assert.ok(Array.isArray(res.data));
+            assert.ok(Array.isArray(res.data.data));
+            assert.ok(res.data.pagination);
         });
 
         it('GET /api/interviews/:id should get interview with prep notes', async () => {
@@ -313,8 +316,9 @@ describe('API Tests', () => {
             const res = await request('GET', `/api/prep-notes?interview_id=${interviewId}`);
 
             assert.strictEqual(res.status, 200);
-            assert.ok(Array.isArray(res.data));
-            assert.ok(res.data.length > 0);
+            assert.ok(Array.isArray(res.data.data));
+            assert.ok(res.data.data.length > 0);
+            assert.ok(res.data.pagination);
         });
     });
 

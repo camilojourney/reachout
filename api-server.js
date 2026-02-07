@@ -74,36 +74,54 @@ function validationError(res, errors) {
 // CONTACTS API
 // ============================================
 
+// Pagination helper
+function parsePagination(query) {
+    const limit = Math.min(Math.max(parseInt(query.limit, 10) || 50, 1), 100);
+    const offset = Math.max(parseInt(query.offset, 10) || 0, 0);
+    return { limit, offset };
+}
+
 // GET /api/contacts - List all contacts
 app.get('/api/contacts', (req, res) => {
     try {
         const db = getDb();
         const { search, company, connection_type, sort = 'created_at', order = 'desc' } = req.query;
+        const { limit, offset } = parsePagination(req.query);
 
-        let sql = 'SELECT * FROM contacts WHERE 1=1';
+        let whereSql = 'WHERE 1=1';
         const params = [];
 
         if (search) {
-            sql += ' AND (name LIKE ? OR company LIKE ? OR email LIKE ?)';
+            whereSql += ' AND (name LIKE ? OR company LIKE ? OR email LIKE ?)';
             const searchTerm = `%${search}%`;
             params.push(searchTerm, searchTerm, searchTerm);
         }
         if (company) {
-            sql += ' AND company = ?';
+            whereSql += ' AND company = ?';
             params.push(company);
         }
         if (connection_type) {
-            sql += ' AND connection_type = ?';
-            params.push(connection_type);
+            const validTypes = ['alumni', 'referral', 'cold', 'friend', 'colleague', 'other'];
+            if (validTypes.includes(connection_type)) {
+                whereSql += ' AND connection_type = ?';
+                params.push(connection_type);
+            }
         }
 
         const validSorts = ['created_at', 'name', 'company', 'relationship_strength'];
         const sortColumn = validSorts.includes(sort) ? sort : 'created_at';
         const sortOrder = order === 'asc' ? 'ASC' : 'DESC';
-        sql += ` ORDER BY ${sortColumn} ${sortOrder}`;
 
-        const contacts = db.prepare(sql).all(...params);
-        res.json(contacts);
+        const countSql = `SELECT COUNT(*) as total FROM contacts ${whereSql}`;
+        const total = db.prepare(countSql).get(...params).total;
+
+        const dataSql = `SELECT * FROM contacts ${whereSql} ORDER BY ${sortColumn} ${sortOrder} LIMIT ? OFFSET ?`;
+        const contacts = db.prepare(dataSql).all(...params, limit, offset);
+
+        res.json({
+            data: contacts,
+            pagination: { total, limit, offset, hasMore: offset + contacts.length < total }
+        });
     } catch (error) {
         handleError(res, error, 'Failed to fetch contacts', req.requestId);
     }
@@ -228,34 +246,43 @@ app.get('/api/interviews', (req, res) => {
     try {
         const db = getDb();
         const { status, contact_id } = req.query;
+        const { limit, offset } = parsePagination(req.query);
 
-        let sql = `
-            SELECT i.*, c.name as contact_name, c.company as contact_company, c.title as contact_title
-            FROM interviews i
-            JOIN contacts c ON i.contact_id = c.id
-            WHERE 1=1
-        `;
+        let whereSql = 'WHERE 1=1';
         const params = [];
 
         if (status) {
             const validStatuses = ['requested', 'scheduled', 'completed', 'cancelled'];
             if (validStatuses.includes(status)) {
-                sql += ' AND i.status = ?';
+                whereSql += ' AND i.status = ?';
                 params.push(status);
             }
         }
         if (contact_id) {
             const parsedId = parseInt(contact_id, 10);
             if (!isNaN(parsedId) && parsedId > 0) {
-                sql += ' AND i.contact_id = ?';
+                whereSql += ' AND i.contact_id = ?';
                 params.push(parsedId);
             }
         }
 
-        sql += ' ORDER BY i.created_at DESC';
+        const countSql = `SELECT COUNT(*) as total FROM interviews i ${whereSql}`;
+        const total = db.prepare(countSql).get(...params).total;
 
-        const interviews = db.prepare(sql).all(...params);
-        res.json(interviews);
+        const dataSql = `
+            SELECT i.*, c.name as contact_name, c.company as contact_company, c.title as contact_title
+            FROM interviews i
+            JOIN contacts c ON i.contact_id = c.id
+            ${whereSql}
+            ORDER BY i.created_at DESC
+            LIMIT ? OFFSET ?
+        `;
+        const interviews = db.prepare(dataSql).all(...params, limit, offset);
+
+        res.json({
+            data: interviews,
+            pagination: { total, limit, offset, hasMore: offset + interviews.length < total }
+        });
     } catch (error) {
         handleError(res, error, 'Failed to fetch interviews', req.requestId);
     }
@@ -412,29 +439,36 @@ app.get('/api/prep-notes', (req, res) => {
     try {
         const db = getDb();
         const { interview_id, type } = req.query;
+        const { limit, offset } = parsePagination(req.query);
 
-        let sql = 'SELECT * FROM prep_notes WHERE 1=1';
+        let whereSql = 'WHERE 1=1';
         const params = [];
 
         if (interview_id) {
             const parsedId = parseInt(interview_id, 10);
             if (!isNaN(parsedId) && parsedId > 0) {
-                sql += ' AND interview_id = ?';
+                whereSql += ' AND interview_id = ?';
                 params.push(parsedId);
             }
         }
         if (type) {
             const validTypes = ['question', 'research', 'insight'];
             if (validTypes.includes(type)) {
-                sql += ' AND type = ?';
+                whereSql += ' AND type = ?';
                 params.push(type);
             }
         }
 
-        sql += ' ORDER BY created_at DESC';
+        const countSql = `SELECT COUNT(*) as total FROM prep_notes ${whereSql}`;
+        const total = db.prepare(countSql).get(...params).total;
 
-        const notes = db.prepare(sql).all(...params);
-        res.json(notes);
+        const dataSql = `SELECT * FROM prep_notes ${whereSql} ORDER BY created_at DESC LIMIT ? OFFSET ?`;
+        const notes = db.prepare(dataSql).all(...params, limit, offset);
+
+        res.json({
+            data: notes,
+            pagination: { total, limit, offset, hasMore: offset + notes.length < total }
+        });
     } catch (error) {
         handleError(res, error, 'Failed to fetch prep notes', req.requestId);
     }
@@ -565,34 +599,43 @@ app.get('/api/outreach', (req, res) => {
     try {
         const db = getDb();
         const { contact_id, type } = req.query;
+        const { limit, offset } = parsePagination(req.query);
 
-        let sql = `
-            SELECT o.*, c.name as contact_name, c.company as contact_company
-            FROM outreach o
-            JOIN contacts c ON o.contact_id = c.id
-            WHERE 1=1
-        `;
+        let whereSql = 'WHERE 1=1';
         const params = [];
 
         if (contact_id) {
             const parsedId = parseInt(contact_id, 10);
             if (!isNaN(parsedId) && parsedId > 0) {
-                sql += ' AND o.contact_id = ?';
+                whereSql += ' AND o.contact_id = ?';
                 params.push(parsedId);
             }
         }
         if (type) {
             const validTypes = ['initial', 'follow_up', 'thank_you'];
             if (validTypes.includes(type)) {
-                sql += ' AND o.type = ?';
+                whereSql += ' AND o.type = ?';
                 params.push(type);
             }
         }
 
-        sql += ' ORDER BY o.sent_at DESC';
+        const countSql = `SELECT COUNT(*) as total FROM outreach o ${whereSql}`;
+        const total = db.prepare(countSql).get(...params).total;
 
-        const records = db.prepare(sql).all(...params);
-        res.json(records);
+        const dataSql = `
+            SELECT o.*, c.name as contact_name, c.company as contact_company
+            FROM outreach o
+            JOIN contacts c ON o.contact_id = c.id
+            ${whereSql}
+            ORDER BY o.sent_at DESC
+            LIMIT ? OFFSET ?
+        `;
+        const records = db.prepare(dataSql).all(...params, limit, offset);
+
+        res.json({
+            data: records,
+            pagination: { total, limit, offset, hasMore: offset + records.length < total }
+        });
     } catch (error) {
         handleError(res, error, 'Failed to fetch outreach records', req.requestId);
     }
@@ -854,7 +897,15 @@ app.get('/api/stats', (req, res) => {
 
 // Health check
 app.get('/api/health', (req, res) => {
-    res.json({ status: 'ok', timestamp: now() });
+    try {
+        const db = getDb();
+        // Verify database is accessible with a simple query
+        db.prepare('SELECT 1').get();
+        res.json({ status: 'ok', timestamp: now(), db: 'connected' });
+    } catch (error) {
+        console.error(`[${req.requestId}] Health check failed:`, error.message);
+        res.status(503).json({ status: 'error', timestamp: now(), db: 'disconnected' });
+    }
 });
 
 // 404 handler for API routes
