@@ -43,18 +43,18 @@ app.use((req, res, next) => {
 // Error handling helper
 function handleError(res, error, message = 'Internal server error', requestId = '') {
     console.error(`[${requestId}] ${message}:`, error.message);
-    res.status(500).json({ 
-        error: message, 
+    res.status(500).json({
+        error: message,
         details: error.message,
-        requestId 
+        requestId
     });
 }
 
 // Validation error response helper
 function validationError(res, errors) {
-    return res.status(400).json({ 
-        error: 'Validation failed', 
-        details: errors 
+    return res.status(400).json({
+        error: 'Validation failed',
+        details: errors
     });
 }
 
@@ -67,10 +67,10 @@ app.get('/api/contacts', (req, res) => {
     try {
         const db = getDb();
         const { search, company, connection_type, sort = 'created_at', order = 'desc' } = req.query;
-        
+
         let sql = 'SELECT * FROM contacts WHERE 1=1';
         const params = [];
-        
+
         if (search) {
             sql += ' AND (name LIKE ? OR company LIKE ? OR email LIKE ?)';
             const searchTerm = `%${search}%`;
@@ -84,12 +84,12 @@ app.get('/api/contacts', (req, res) => {
             sql += ' AND connection_type = ?';
             params.push(connection_type);
         }
-        
+
         const validSorts = ['created_at', 'name', 'company', 'relationship_strength'];
         const sortColumn = validSorts.includes(sort) ? sort : 'created_at';
         const sortOrder = order === 'asc' ? 'ASC' : 'DESC';
         sql += ` ORDER BY ${sortColumn} ${sortOrder}`;
-        
+
         const contacts = db.prepare(sql).all(...params);
         res.json(contacts);
     } catch (error) {
@@ -102,16 +102,16 @@ app.get('/api/contacts/:id', (req, res) => {
     try {
         const db = getDb();
         const id = parseInt(req.params.id, 10);
-        
+
         const contact = db.prepare('SELECT * FROM contacts WHERE id = ?').get(id);
         if (!contact) {
             return res.status(404).json({ error: 'Contact not found' });
         }
-        
+
         // Include related interviews and outreach
         contact.interviews = db.prepare('SELECT * FROM interviews WHERE contact_id = ? ORDER BY created_at DESC').all(id);
         contact.outreach = db.prepare('SELECT * FROM outreach WHERE contact_id = ? ORDER BY sent_at DESC').all(id);
-        
+
         res.json(contact);
     } catch (error) {
         handleError(res, error, 'Failed to fetch contact', req.requestId);
@@ -125,15 +125,15 @@ app.post('/api/contacts', (req, res) => {
         if (!valid) {
             return validationError(res, errors);
         }
-        
+
         const db = getDb();
         const { name, email, linkedin_url, company, title, connection_type, relationship_strength, notes } = sanitized;
-        
+
         const result = db.prepare(`
             INSERT INTO contacts (name, email, linkedin_url, company, title, connection_type, relationship_strength, notes)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         `).run(name, email, linkedin_url, company, title, connection_type, relationship_strength, notes);
-        
+
         const contact = db.prepare('SELECT * FROM contacts WHERE id = ?').get(result.lastInsertRowid);
         res.status(201).json(contact);
     } catch (error) {
@@ -148,20 +148,20 @@ app.put('/api/contacts/:id', (req, res) => {
         if (isNaN(id)) {
             return res.status(400).json({ error: 'Invalid contact ID' });
         }
-        
+
         const { valid, errors, sanitized } = validateContact(req.body, true);
         if (!valid) {
             return validationError(res, errors);
         }
-        
+
         const db = getDb();
         const existing = db.prepare('SELECT * FROM contacts WHERE id = ?').get(id);
         if (!existing) {
             return res.status(404).json({ error: 'Contact not found' });
         }
-        
+
         const { name, email, linkedin_url, company, title, connection_type, relationship_strength, notes } = sanitized;
-        
+
         db.prepare(`
             UPDATE contacts SET
                 name = COALESCE(?, name),
@@ -175,7 +175,7 @@ app.put('/api/contacts/:id', (req, res) => {
                 updated_at = ?
             WHERE id = ?
         `).run(name, email, linkedin_url, company, title, connection_type, relationship_strength, notes, now(), id);
-        
+
         const contact = db.prepare('SELECT * FROM contacts WHERE id = ?').get(id);
         res.json(contact);
     } catch (error) {
@@ -188,12 +188,12 @@ app.delete('/api/contacts/:id', (req, res) => {
     try {
         const db = getDb();
         const id = parseInt(req.params.id, 10);
-        
+
         const existing = db.prepare('SELECT * FROM contacts WHERE id = ?').get(id);
         if (!existing) {
             return res.status(404).json({ error: 'Contact not found' });
         }
-        
+
         db.prepare('DELETE FROM contacts WHERE id = ?').run(id);
         res.status(204).send();
     } catch (error) {
@@ -210,7 +210,7 @@ app.get('/api/interviews', (req, res) => {
     try {
         const db = getDb();
         const { status, contact_id } = req.query;
-        
+
         let sql = `
             SELECT i.*, c.name as contact_name, c.company as contact_company, c.title as contact_title
             FROM interviews i
@@ -218,7 +218,7 @@ app.get('/api/interviews', (req, res) => {
             WHERE 1=1
         `;
         const params = [];
-        
+
         if (status) {
             sql += ' AND i.status = ?';
             params.push(status);
@@ -227,9 +227,9 @@ app.get('/api/interviews', (req, res) => {
             sql += ' AND i.contact_id = ?';
             params.push(parseInt(contact_id, 10));
         }
-        
+
         sql += ' ORDER BY i.created_at DESC';
-        
+
         const interviews = db.prepare(sql).all(...params);
         res.json(interviews);
     } catch (error) {
@@ -242,18 +242,18 @@ app.get('/api/interviews/:id', (req, res) => {
     try {
         const db = getDb();
         const id = parseInt(req.params.id, 10);
-        
+
         const interview = db.prepare(`
             SELECT i.*, c.name as contact_name, c.company as contact_company, c.title as contact_title, c.email as contact_email
             FROM interviews i
             JOIN contacts c ON i.contact_id = c.id
             WHERE i.id = ?
         `).get(id);
-        
+
         if (!interview) {
             return res.status(404).json({ error: 'Interview not found' });
         }
-        
+
         interview.prep_notes = db.prepare('SELECT * FROM prep_notes WHERE interview_id = ? ORDER BY created_at DESC').all(id);
         res.json(interview);
     } catch (error) {
@@ -268,28 +268,28 @@ app.post('/api/interviews', (req, res) => {
         if (!valid) {
             return validationError(res, errors);
         }
-        
+
         const db = getDb();
         const { contact_id, status, scheduled_at, location, notes } = sanitized;
-        
+
         // Verify contact exists
         const contact = db.prepare('SELECT id FROM contacts WHERE id = ?').get(contact_id);
         if (!contact) {
             return res.status(400).json({ error: 'Contact not found' });
         }
-        
+
         const result = db.prepare(`
             INSERT INTO interviews (contact_id, status, scheduled_at, location, notes)
             VALUES (?, ?, ?, ?, ?)
         `).run(contact_id, status, scheduled_at, location, notes);
-        
+
         const interview = db.prepare(`
             SELECT i.*, c.name as contact_name, c.company as contact_company
             FROM interviews i
             JOIN contacts c ON i.contact_id = c.id
             WHERE i.id = ?
         `).get(result.lastInsertRowid);
-        
+
         res.status(201).json(interview);
     } catch (error) {
         handleError(res, error, 'Failed to create interview', req.requestId);
@@ -301,20 +301,20 @@ app.put('/api/interviews/:id', (req, res) => {
     try {
         const id = parseInt(req.params.id, 10);
         const db = getDb();
-        
+
         const existing = db.prepare('SELECT * FROM interviews WHERE id = ?').get(id);
         if (!existing) {
             return res.status(404).json({ error: 'Interview not found' });
         }
-        
+
         const { status, scheduled_at, completed_at, location, notes } = req.body;
-        
+
         // Auto-set completed_at when status changes to completed
         let finalCompletedAt = completed_at;
         if (status === 'completed' && !existing.completed_at && !completed_at) {
             finalCompletedAt = now();
         }
-        
+
         db.prepare(`
             UPDATE interviews SET
                 status = COALESCE(?, status),
@@ -333,14 +333,14 @@ app.put('/api/interviews/:id', (req, res) => {
             now(),
             id
         );
-        
+
         const interview = db.prepare(`
             SELECT i.*, c.name as contact_name, c.company as contact_company
             FROM interviews i
             JOIN contacts c ON i.contact_id = c.id
             WHERE i.id = ?
         `).get(id);
-        
+
         res.json(interview);
     } catch (error) {
         handleError(res, error, 'Failed to update interview', req.requestId);
@@ -352,12 +352,12 @@ app.delete('/api/interviews/:id', (req, res) => {
     try {
         const db = getDb();
         const id = parseInt(req.params.id, 10);
-        
+
         const existing = db.prepare('SELECT * FROM interviews WHERE id = ?').get(id);
         if (!existing) {
             return res.status(404).json({ error: 'Interview not found' });
         }
-        
+
         db.prepare('DELETE FROM interviews WHERE id = ?').run(id);
         res.status(204).send();
     } catch (error) {
@@ -374,10 +374,10 @@ app.get('/api/prep-notes', (req, res) => {
     try {
         const db = getDb();
         const { interview_id, type } = req.query;
-        
+
         let sql = 'SELECT * FROM prep_notes WHERE 1=1';
         const params = [];
-        
+
         if (interview_id) {
             sql += ' AND interview_id = ?';
             params.push(parseInt(interview_id, 10));
@@ -386,9 +386,9 @@ app.get('/api/prep-notes', (req, res) => {
             sql += ' AND type = ?';
             params.push(type);
         }
-        
+
         sql += ' ORDER BY created_at DESC';
-        
+
         const notes = db.prepare(sql).all(...params);
         res.json(notes);
     } catch (error) {
@@ -401,7 +401,7 @@ app.get('/api/prep-notes/:id', (req, res) => {
     try {
         const db = getDb();
         const id = parseInt(req.params.id, 10);
-        
+
         const note = db.prepare('SELECT * FROM prep_notes WHERE id = ?').get(id);
         if (!note) {
             return res.status(404).json({ error: 'Prep note not found' });
@@ -419,21 +419,21 @@ app.post('/api/prep-notes', (req, res) => {
         if (!valid) {
             return validationError(res, errors);
         }
-        
+
         const db = getDb();
         const { interview_id, type, content } = sanitized;
-        
+
         // Verify interview exists
         const interview = db.prepare('SELECT id FROM interviews WHERE id = ?').get(interview_id);
         if (!interview) {
             return res.status(400).json({ error: 'Interview not found' });
         }
-        
+
         const result = db.prepare(`
             INSERT INTO prep_notes (interview_id, type, content)
             VALUES (?, ?, ?)
         `).run(interview_id, type, content);
-        
+
         const note = db.prepare('SELECT * FROM prep_notes WHERE id = ?').get(result.lastInsertRowid);
         res.status(201).json(note);
     } catch (error) {
@@ -446,14 +446,14 @@ app.put('/api/prep-notes/:id', (req, res) => {
     try {
         const id = parseInt(req.params.id, 10);
         const db = getDb();
-        
+
         const existing = db.prepare('SELECT * FROM prep_notes WHERE id = ?').get(id);
         if (!existing) {
             return res.status(404).json({ error: 'Prep note not found' });
         }
-        
+
         const { type, content } = req.body;
-        
+
         db.prepare(`
             UPDATE prep_notes SET
                 type = COALESCE(?, type),
@@ -461,7 +461,7 @@ app.put('/api/prep-notes/:id', (req, res) => {
                 updated_at = ?
             WHERE id = ?
         `).run(type, content, now(), id);
-        
+
         const note = db.prepare('SELECT * FROM prep_notes WHERE id = ?').get(id);
         res.json(note);
     } catch (error) {
@@ -474,12 +474,12 @@ app.delete('/api/prep-notes/:id', (req, res) => {
     try {
         const db = getDb();
         const id = parseInt(req.params.id, 10);
-        
+
         const existing = db.prepare('SELECT * FROM prep_notes WHERE id = ?').get(id);
         if (!existing) {
             return res.status(404).json({ error: 'Prep note not found' });
         }
-        
+
         db.prepare('DELETE FROM prep_notes WHERE id = ?').run(id);
         res.status(204).send();
     } catch (error) {
@@ -496,7 +496,7 @@ app.get('/api/outreach', (req, res) => {
     try {
         const db = getDb();
         const { contact_id, type } = req.query;
-        
+
         let sql = `
             SELECT o.*, c.name as contact_name, c.company as contact_company
             FROM outreach o
@@ -504,7 +504,7 @@ app.get('/api/outreach', (req, res) => {
             WHERE 1=1
         `;
         const params = [];
-        
+
         if (contact_id) {
             sql += ' AND o.contact_id = ?';
             params.push(parseInt(contact_id, 10));
@@ -513,9 +513,9 @@ app.get('/api/outreach', (req, res) => {
             sql += ' AND o.type = ?';
             params.push(type);
         }
-        
+
         sql += ' ORDER BY o.sent_at DESC';
-        
+
         const records = db.prepare(sql).all(...params);
         res.json(records);
     } catch (error) {
@@ -528,14 +528,14 @@ app.get('/api/outreach/:id', (req, res) => {
     try {
         const db = getDb();
         const id = parseInt(req.params.id, 10);
-        
+
         const record = db.prepare(`
             SELECT o.*, c.name as contact_name, c.company as contact_company
             FROM outreach o
             JOIN contacts c ON o.contact_id = c.id
             WHERE o.id = ?
         `).get(id);
-        
+
         if (!record) {
             return res.status(404).json({ error: 'Outreach record not found' });
         }
@@ -552,28 +552,28 @@ app.post('/api/outreach', (req, res) => {
         if (!valid) {
             return validationError(res, errors);
         }
-        
+
         const db = getDb();
         const { contact_id, type, channel, sent_at, notes } = sanitized;
-        
+
         // Verify contact exists
         const contact = db.prepare('SELECT id FROM contacts WHERE id = ?').get(contact_id);
         if (!contact) {
             return res.status(400).json({ error: 'Contact not found' });
         }
-        
+
         const result = db.prepare(`
             INSERT INTO outreach (contact_id, type, channel, sent_at, notes)
             VALUES (?, ?, ?, ?, ?)
         `).run(contact_id, type, channel, sent_at || now(), notes);
-        
+
         const record = db.prepare(`
             SELECT o.*, c.name as contact_name, c.company as contact_company
             FROM outreach o
             JOIN contacts c ON o.contact_id = c.id
             WHERE o.id = ?
         `).get(result.lastInsertRowid);
-        
+
         res.status(201).json(record);
     } catch (error) {
         handleError(res, error, 'Failed to create outreach record', req.requestId);
@@ -585,20 +585,20 @@ app.put('/api/outreach/:id', (req, res) => {
     try {
         const id = parseInt(req.params.id, 10);
         const db = getDb();
-        
+
         const existing = db.prepare('SELECT * FROM outreach WHERE id = ?').get(id);
         if (!existing) {
             return res.status(404).json({ error: 'Outreach record not found' });
         }
-        
+
         const { type, channel, response_received, response_at, notes } = req.body;
-        
+
         // Auto-set response_at when marking response received
         let finalResponseAt = response_at;
         if (response_received && !existing.response_at && !response_at) {
             finalResponseAt = now();
         }
-        
+
         db.prepare(`
             UPDATE outreach SET
                 type = COALESCE(?, type),
@@ -609,14 +609,14 @@ app.put('/api/outreach/:id', (req, res) => {
                 updated_at = ?
             WHERE id = ?
         `).run(type, channel, response_received ? 1 : 0, finalResponseAt, notes, now(), id);
-        
+
         const record = db.prepare(`
             SELECT o.*, c.name as contact_name, c.company as contact_company
             FROM outreach o
             JOIN contacts c ON o.contact_id = c.id
             WHERE o.id = ?
         `).get(id);
-        
+
         res.json(record);
     } catch (error) {
         handleError(res, error, 'Failed to update outreach record', req.requestId);
@@ -628,12 +628,12 @@ app.delete('/api/outreach/:id', (req, res) => {
     try {
         const db = getDb();
         const id = parseInt(req.params.id, 10);
-        
+
         const existing = db.prepare('SELECT * FROM outreach WHERE id = ?').get(id);
         if (!existing) {
             return res.status(404).json({ error: 'Outreach record not found' });
         }
-        
+
         db.prepare('DELETE FROM outreach WHERE id = ?').run(id);
         res.status(204).send();
     } catch (error) {
@@ -649,7 +649,7 @@ app.delete('/api/outreach/:id', (req, res) => {
 app.get('/api/pipeline', (req, res) => {
     try {
         const db = getDb();
-        
+
         const pipeline = {
             requested: db.prepare(`
                 SELECT i.*, c.name as contact_name, c.company as contact_company, c.title as contact_title
@@ -682,7 +682,7 @@ app.get('/api/pipeline', (req, res) => {
                 LIMIT 5
             `).all()
         };
-        
+
         res.json(pipeline);
     } catch (error) {
         handleError(res, error, 'Failed to fetch pipeline', req.requestId);
@@ -693,7 +693,7 @@ app.get('/api/pipeline', (req, res) => {
 app.get('/api/stats', (req, res) => {
     try {
         const db = getDb();
-        
+
         const stats = {
             contacts: {
                 total: db.prepare('SELECT COUNT(*) as count FROM contacts').get().count,
@@ -743,7 +743,7 @@ app.get('/api/stats', (req, res) => {
                 insights: db.prepare("SELECT COUNT(*) as count FROM prep_notes WHERE type = 'insight'").get().count
             }
         };
-        
+
         res.json(stats);
     } catch (error) {
         handleError(res, error, 'Failed to fetch stats', req.requestId);

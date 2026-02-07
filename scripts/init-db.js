@@ -15,22 +15,22 @@ const SCHEMA_PATH = path.join(__dirname, '..', 'schema.sql');
 
 function initDatabase() {
     console.log(`Initializing database at: ${DB_PATH}`);
-    
+
     // Read schema
     const schema = fs.readFileSync(SCHEMA_PATH, 'utf8');
-    
+
     // Create/open database
     const db = new Database(DB_PATH);
-    
+
     // Enable foreign keys
     db.pragma('foreign_keys = ON');
-    
+
     // Execute schema
     db.exec(schema);
-    
+
     console.log('Database initialized successfully!');
     console.log('Tables created: contacts, interviews, prep_notes, outreach');
-    
+
     db.close();
 }
 
