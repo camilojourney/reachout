@@ -62,11 +62,18 @@ describe('isValidLinkedInUrl', () => {
     it('should return true for valid LinkedIn URLs', () => {
         assert.strictEqual(isValidLinkedInUrl('https://linkedin.com/in/johndoe'), true);
         assert.strictEqual(isValidLinkedInUrl('https://www.linkedin.com/in/johndoe'), true);
+        assert.strictEqual(isValidLinkedInUrl('http://linkedin.com/company/acme'), true);
     });
 
     it('should return false for non-LinkedIn URLs', () => {
         assert.strictEqual(isValidLinkedInUrl('https://twitter.com/johndoe'), false);
         assert.strictEqual(isValidLinkedInUrl('https://example.com'), false);
+    });
+
+    it('should return false for phishing/spoofed URLs', () => {
+        assert.strictEqual(isValidLinkedInUrl('https://evil.com/linkedin.com/phish'), false);
+        assert.strictEqual(isValidLinkedInUrl('https://linkedin.com.evil.com/in/user'), false);
+        assert.strictEqual(isValidLinkedInUrl('https://fake-linkedin.com/in/user'), false);
     });
 });
 
@@ -113,6 +120,7 @@ describe('isValidISODate', () => {
         assert.strictEqual(isValidISODate('2024-01-15'), true);
         assert.strictEqual(isValidISODate('2024-01-15T10:30:00Z'), true);
         assert.strictEqual(isValidISODate('2024-01-15T10:30:00.000Z'), true);
+        assert.strictEqual(isValidISODate('2024-12-31'), true);
     });
 
     it('should return true for empty/null (optional field)', () => {
@@ -123,6 +131,8 @@ describe('isValidISODate', () => {
     it('should return false for invalid dates', () => {
         assert.strictEqual(isValidISODate('not-a-date'), false);
         assert.strictEqual(isValidISODate('2024-13-45'), false);
+        assert.strictEqual(isValidISODate('2024-02-30'), false); // Feb 30 doesn't exist
+        assert.strictEqual(isValidISODate('2024/01/15'), false); // Wrong format
     });
 });
 
