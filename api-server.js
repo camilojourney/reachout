@@ -9,94 +9,53 @@
 const express = require('express');
 const path = require('path');
 const { getDb, closeDb, now } = require('./lib/db');
+const {
+    validateContact,
+    validateInterview,
+    validatePrepNote,
+    validateOutreach
+} = require('./lib/validation');
 
 const app = express();
 const PORT = process.env.PORT || 3458;
 
 // Middleware
-app.use(express.json());
+app.use(express.json({ limit: '1mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
+
+// Request ID middleware
+app.use((req, res, next) => {
+    req.requestId = `req_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    res.setHeader('X-Request-ID', req.requestId);
+    next();
+});
 
 // Request logging
 app.use((req, res, next) => {
     const start = Date.now();
     res.on('finish', () => {
         const duration = Date.now() - start;
-        console.log(`${req.method} ${req.path} ${res.statusCode} ${duration}ms`);
+        console.log(`[${req.requestId}] ${req.method} ${req.path} ${res.statusCode} ${duration}ms`);
     });
     next();
 });
 
 // Error handling helper
-function handleError(res, error, message = 'Internal server error') {
-    console.error(message, error);
-    res.status(500).json({ error: message, details: error.message });
+function handleError(res, error, message = 'Internal server error', requestId = '') {
+    console.error(`[${requestId}] ${message}:`, error.message);
+    res.status(500).json({ 
+        error: message, 
+        details: error.message,
+        requestId 
+    });
 }
 
-// Validation helpers
-function validateContact(data) {
-    const errors = [];
-    if (!data.name || typeof data.name !== 'string' || data.name.trim() === '') {
-        errors.push('Name is required');
-    }
-    if (data.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) {
-        errors.push('Invalid email format');
-    }
-    if (data.relationship_strength && (data.relationship_strength < 1 || data.relationship_strength > 5)) {
-        errors.push('Relationship strength must be between 1 and 5');
-    }
-    const validConnectionTypes = ['alumni', 'referral', 'cold', 'friend', 'colleague', 'other'];
-    if (data.connection_type && !validConnectionTypes.includes(data.connection_type)) {
-        errors.push(`Connection type must be one of: ${validConnectionTypes.join(', ')}`);
-    }
-    return errors;
-}
-
-function validateInterview(data) {
-    const errors = [];
-    if (!data.contact_id || !Number.isInteger(data.contact_id)) {
-        errors.push('Valid contact_id is required');
-    }
-    const validStatuses = ['requested', 'scheduled', 'completed', 'cancelled'];
-    if (data.status && !validStatuses.includes(data.status)) {
-        errors.push(`Status must be one of: ${validStatuses.join(', ')}`);
-    }
-    const validLocations = ['virtual', 'phone', 'coffee', 'office', 'other'];
-    if (data.location && !validLocations.includes(data.location)) {
-        errors.push(`Location must be one of: ${validLocations.join(', ')}`);
-    }
-    return errors;
-}
-
-function validatePrepNote(data) {
-    const errors = [];
-    if (!data.interview_id || !Number.isInteger(data.interview_id)) {
-        errors.push('Valid interview_id is required');
-    }
-    const validTypes = ['question', 'research', 'insight'];
-    if (!data.type || !validTypes.includes(data.type)) {
-        errors.push(`Type must be one of: ${validTypes.join(', ')}`);
-    }
-    if (!data.content || typeof data.content !== 'string' || data.content.trim() === '') {
-        errors.push('Content is required');
-    }
-    return errors;
-}
-
-function validateOutreach(data) {
-    const errors = [];
-    if (!data.contact_id || !Number.isInteger(data.contact_id)) {
-        errors.push('Valid contact_id is required');
-    }
-    const validTypes = ['initial', 'follow_up', 'thank_you'];
-    if (!data.type || !validTypes.includes(data.type)) {
-        errors.push(`Type must be one of: ${validTypes.join(', ')}`);
-    }
-    const validChannels = ['email', 'linkedin', 'phone', 'other'];
-    if (data.channel && !validChannels.includes(data.channel)) {
-        errors.push(`Channel must be one of: ${validChannels.join(', ')}`);
-    }
-    return errors;
+// Validation error response helper
+function validationError(res, errors) {
+    return res.status(400).json({ 
+        error: 'Validation failed', 
+        details: errors 
+    });
 }
 
 // ============================================
@@ -134,7 +93,7 @@ app.get('/api/contacts', (req, res) => {
         const contacts = db.prepare(sql).all(...params);
         res.json(contacts);
     } catch (error) {
-        handleError(res, error, 'Failed to fetch contacts');
+        handleError(res, error, 'Failed to fetch contacts', req.requestId);
     }
 });
 
@@ -155,39 +114,30 @@ app.get('/api/contacts/:id', (req, res) => {
         
         res.json(contact);
     } catch (error) {
-        handleError(res, error, 'Failed to fetch contact');
+        handleError(res, error, 'Failed to fetch contact', req.requestId);
     }
 });
 
 // POST /api/contacts - Create contact
 app.post('/api/contacts', (req, res) => {
     try {
-        const errors = validateContact(req.body);
-        if (errors.length > 0) {
-            return res.status(400).json({ error: 'Validation failed', details: errors });
+        const { valid, errors, sanitized } = validateContact(req.body, false);
+        if (!valid) {
+            return validationError(res, errors);
         }
         
         const db = getDb();
-        const { name, email, linkedin_url, company, title, connection_type, relationship_strength, notes } = req.body;
+        const { name, email, linkedin_url, company, title, connection_type, relationship_strength, notes } = sanitized;
         
         const result = db.prepare(`
             INSERT INTO contacts (name, email, linkedin_url, company, title, connection_type, relationship_strength, notes)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        `).run(
-            name.trim(),
-            email || null,
-            linkedin_url || null,
-            company || null,
-            title || null,
-            connection_type || 'other',
-            relationship_strength || 1,
-            notes || null
-        );
+        `).run(name, email, linkedin_url, company, title, connection_type, relationship_strength, notes);
         
         const contact = db.prepare('SELECT * FROM contacts WHERE id = ?').get(result.lastInsertRowid);
         res.status(201).json(contact);
     } catch (error) {
-        handleError(res, error, 'Failed to create contact');
+        handleError(res, error, 'Failed to create contact', req.requestId);
     }
 });
 
@@ -195,11 +145,13 @@ app.post('/api/contacts', (req, res) => {
 app.put('/api/contacts/:id', (req, res) => {
     try {
         const id = parseInt(req.params.id, 10);
-        const errors = validateContact({ ...req.body, name: req.body.name || 'placeholder' });
-        // Name is optional for updates
-        const filteredErrors = errors.filter(e => !e.includes('Name is required'));
-        if (filteredErrors.length > 0) {
-            return res.status(400).json({ error: 'Validation failed', details: filteredErrors });
+        if (isNaN(id)) {
+            return res.status(400).json({ error: 'Invalid contact ID' });
+        }
+        
+        const { valid, errors, sanitized } = validateContact(req.body, true);
+        if (!valid) {
+            return validationError(res, errors);
         }
         
         const db = getDb();
@@ -208,7 +160,7 @@ app.put('/api/contacts/:id', (req, res) => {
             return res.status(404).json({ error: 'Contact not found' });
         }
         
-        const { name, email, linkedin_url, company, title, connection_type, relationship_strength, notes } = req.body;
+        const { name, email, linkedin_url, company, title, connection_type, relationship_strength, notes } = sanitized;
         
         db.prepare(`
             UPDATE contacts SET
@@ -222,23 +174,12 @@ app.put('/api/contacts/:id', (req, res) => {
                 notes = COALESCE(?, notes),
                 updated_at = ?
             WHERE id = ?
-        `).run(
-            name || null,
-            email,
-            linkedin_url,
-            company,
-            title,
-            connection_type,
-            relationship_strength,
-            notes,
-            now(),
-            id
-        );
+        `).run(name, email, linkedin_url, company, title, connection_type, relationship_strength, notes, now(), id);
         
         const contact = db.prepare('SELECT * FROM contacts WHERE id = ?').get(id);
         res.json(contact);
     } catch (error) {
-        handleError(res, error, 'Failed to update contact');
+        handleError(res, error, 'Failed to update contact', req.requestId);
     }
 });
 
@@ -256,7 +197,7 @@ app.delete('/api/contacts/:id', (req, res) => {
         db.prepare('DELETE FROM contacts WHERE id = ?').run(id);
         res.status(204).send();
     } catch (error) {
-        handleError(res, error, 'Failed to delete contact');
+        handleError(res, error, 'Failed to delete contact', req.requestId);
     }
 });
 
@@ -292,7 +233,7 @@ app.get('/api/interviews', (req, res) => {
         const interviews = db.prepare(sql).all(...params);
         res.json(interviews);
     } catch (error) {
-        handleError(res, error, 'Failed to fetch interviews');
+        handleError(res, error, 'Failed to fetch interviews', req.requestId);
     }
 });
 
@@ -316,20 +257,20 @@ app.get('/api/interviews/:id', (req, res) => {
         interview.prep_notes = db.prepare('SELECT * FROM prep_notes WHERE interview_id = ? ORDER BY created_at DESC').all(id);
         res.json(interview);
     } catch (error) {
-        handleError(res, error, 'Failed to fetch interview');
+        handleError(res, error, 'Failed to fetch interview', req.requestId);
     }
 });
 
 // POST /api/interviews - Create interview
 app.post('/api/interviews', (req, res) => {
     try {
-        const errors = validateInterview(req.body);
-        if (errors.length > 0) {
-            return res.status(400).json({ error: 'Validation failed', details: errors });
+        const { valid, errors, sanitized } = validateInterview(req.body, false);
+        if (!valid) {
+            return validationError(res, errors);
         }
         
         const db = getDb();
-        const { contact_id, status, scheduled_at, location, notes } = req.body;
+        const { contact_id, status, scheduled_at, location, notes } = sanitized;
         
         // Verify contact exists
         const contact = db.prepare('SELECT id FROM contacts WHERE id = ?').get(contact_id);
@@ -340,13 +281,7 @@ app.post('/api/interviews', (req, res) => {
         const result = db.prepare(`
             INSERT INTO interviews (contact_id, status, scheduled_at, location, notes)
             VALUES (?, ?, ?, ?, ?)
-        `).run(
-            contact_id,
-            status || 'requested',
-            scheduled_at || null,
-            location || 'virtual',
-            notes || null
-        );
+        `).run(contact_id, status, scheduled_at, location, notes);
         
         const interview = db.prepare(`
             SELECT i.*, c.name as contact_name, c.company as contact_company
@@ -357,7 +292,7 @@ app.post('/api/interviews', (req, res) => {
         
         res.status(201).json(interview);
     } catch (error) {
-        handleError(res, error, 'Failed to create interview');
+        handleError(res, error, 'Failed to create interview', req.requestId);
     }
 });
 
@@ -408,7 +343,7 @@ app.put('/api/interviews/:id', (req, res) => {
         
         res.json(interview);
     } catch (error) {
-        handleError(res, error, 'Failed to update interview');
+        handleError(res, error, 'Failed to update interview', req.requestId);
     }
 });
 
@@ -426,7 +361,7 @@ app.delete('/api/interviews/:id', (req, res) => {
         db.prepare('DELETE FROM interviews WHERE id = ?').run(id);
         res.status(204).send();
     } catch (error) {
-        handleError(res, error, 'Failed to delete interview');
+        handleError(res, error, 'Failed to delete interview', req.requestId);
     }
 });
 
@@ -457,7 +392,7 @@ app.get('/api/prep-notes', (req, res) => {
         const notes = db.prepare(sql).all(...params);
         res.json(notes);
     } catch (error) {
-        handleError(res, error, 'Failed to fetch prep notes');
+        handleError(res, error, 'Failed to fetch prep notes', req.requestId);
     }
 });
 
@@ -473,20 +408,20 @@ app.get('/api/prep-notes/:id', (req, res) => {
         }
         res.json(note);
     } catch (error) {
-        handleError(res, error, 'Failed to fetch prep note');
+        handleError(res, error, 'Failed to fetch prep note', req.requestId);
     }
 });
 
 // POST /api/prep-notes - Create prep note
 app.post('/api/prep-notes', (req, res) => {
     try {
-        const errors = validatePrepNote(req.body);
-        if (errors.length > 0) {
-            return res.status(400).json({ error: 'Validation failed', details: errors });
+        const { valid, errors, sanitized } = validatePrepNote(req.body, false);
+        if (!valid) {
+            return validationError(res, errors);
         }
         
         const db = getDb();
-        const { interview_id, type, content } = req.body;
+        const { interview_id, type, content } = sanitized;
         
         // Verify interview exists
         const interview = db.prepare('SELECT id FROM interviews WHERE id = ?').get(interview_id);
@@ -497,12 +432,12 @@ app.post('/api/prep-notes', (req, res) => {
         const result = db.prepare(`
             INSERT INTO prep_notes (interview_id, type, content)
             VALUES (?, ?, ?)
-        `).run(interview_id, type, content.trim());
+        `).run(interview_id, type, content);
         
         const note = db.prepare('SELECT * FROM prep_notes WHERE id = ?').get(result.lastInsertRowid);
         res.status(201).json(note);
     } catch (error) {
-        handleError(res, error, 'Failed to create prep note');
+        handleError(res, error, 'Failed to create prep note', req.requestId);
     }
 });
 
@@ -530,7 +465,7 @@ app.put('/api/prep-notes/:id', (req, res) => {
         const note = db.prepare('SELECT * FROM prep_notes WHERE id = ?').get(id);
         res.json(note);
     } catch (error) {
-        handleError(res, error, 'Failed to update prep note');
+        handleError(res, error, 'Failed to update prep note', req.requestId);
     }
 });
 
@@ -548,7 +483,7 @@ app.delete('/api/prep-notes/:id', (req, res) => {
         db.prepare('DELETE FROM prep_notes WHERE id = ?').run(id);
         res.status(204).send();
     } catch (error) {
-        handleError(res, error, 'Failed to delete prep note');
+        handleError(res, error, 'Failed to delete prep note', req.requestId);
     }
 });
 
@@ -584,7 +519,7 @@ app.get('/api/outreach', (req, res) => {
         const records = db.prepare(sql).all(...params);
         res.json(records);
     } catch (error) {
-        handleError(res, error, 'Failed to fetch outreach records');
+        handleError(res, error, 'Failed to fetch outreach records', req.requestId);
     }
 });
 
@@ -606,20 +541,20 @@ app.get('/api/outreach/:id', (req, res) => {
         }
         res.json(record);
     } catch (error) {
-        handleError(res, error, 'Failed to fetch outreach record');
+        handleError(res, error, 'Failed to fetch outreach record', req.requestId);
     }
 });
 
 // POST /api/outreach - Create outreach record
 app.post('/api/outreach', (req, res) => {
     try {
-        const errors = validateOutreach(req.body);
-        if (errors.length > 0) {
-            return res.status(400).json({ error: 'Validation failed', details: errors });
+        const { valid, errors, sanitized } = validateOutreach(req.body, false);
+        if (!valid) {
+            return validationError(res, errors);
         }
         
         const db = getDb();
-        const { contact_id, type, channel, sent_at, notes } = req.body;
+        const { contact_id, type, channel, sent_at, notes } = sanitized;
         
         // Verify contact exists
         const contact = db.prepare('SELECT id FROM contacts WHERE id = ?').get(contact_id);
@@ -630,13 +565,7 @@ app.post('/api/outreach', (req, res) => {
         const result = db.prepare(`
             INSERT INTO outreach (contact_id, type, channel, sent_at, notes)
             VALUES (?, ?, ?, ?, ?)
-        `).run(
-            contact_id,
-            type,
-            channel || 'email',
-            sent_at || now(),
-            notes || null
-        );
+        `).run(contact_id, type, channel, sent_at || now(), notes);
         
         const record = db.prepare(`
             SELECT o.*, c.name as contact_name, c.company as contact_company
@@ -647,7 +576,7 @@ app.post('/api/outreach', (req, res) => {
         
         res.status(201).json(record);
     } catch (error) {
-        handleError(res, error, 'Failed to create outreach record');
+        handleError(res, error, 'Failed to create outreach record', req.requestId);
     }
 });
 
@@ -690,7 +619,7 @@ app.put('/api/outreach/:id', (req, res) => {
         
         res.json(record);
     } catch (error) {
-        handleError(res, error, 'Failed to update outreach record');
+        handleError(res, error, 'Failed to update outreach record', req.requestId);
     }
 });
 
@@ -708,7 +637,7 @@ app.delete('/api/outreach/:id', (req, res) => {
         db.prepare('DELETE FROM outreach WHERE id = ?').run(id);
         res.status(204).send();
     } catch (error) {
-        handleError(res, error, 'Failed to delete outreach record');
+        handleError(res, error, 'Failed to delete outreach record', req.requestId);
     }
 });
 
@@ -756,7 +685,7 @@ app.get('/api/pipeline', (req, res) => {
         
         res.json(pipeline);
     } catch (error) {
-        handleError(res, error, 'Failed to fetch pipeline');
+        handleError(res, error, 'Failed to fetch pipeline', req.requestId);
     }
 });
 
@@ -817,7 +746,7 @@ app.get('/api/stats', (req, res) => {
         
         res.json(stats);
     } catch (error) {
-        handleError(res, error, 'Failed to fetch stats');
+        handleError(res, error, 'Failed to fetch stats', req.requestId);
     }
 });
 
