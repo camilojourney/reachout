@@ -85,6 +85,10 @@ CREATE TABLE outreach (
 - ✅ Prep Notes: GET, POST, PUT, DELETE
 - ✅ Outreach: GET, POST, PUT, DELETE
 
+### Pagination
+- ✅ List endpoints support `?limit=` (1-100, default 50) and `?offset=` parameters
+- ✅ Response format: `{ data: [...], pagination: { total, limit, offset, hasMore } }`
+
 ### Dashboard
 - ✅ GET /api/pipeline - Interview statuses grouped
 - ✅ GET /api/stats - Analytics data
@@ -143,7 +147,7 @@ CREATE TABLE outreach (
 ### Testing
 - ✅ Unit tests for validation
 - ✅ Integration tests for all endpoints
-- ✅ 62 tests passing
+- ✅ 63 tests passing
 
 ### Code Quality
 - ✅ ESLint configured

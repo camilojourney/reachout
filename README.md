@@ -68,28 +68,28 @@ reachout/
 ## API Endpoints
 
 ### Contacts
-- `GET /api/contacts` - List all contacts (supports `?search=`, `?company=`, `?connection_type=`)
+- `GET /api/contacts` - List all contacts (supports `?search=`, `?company=`, `?connection_type=`, `?limit=`, `?offset=`)
 - `GET /api/contacts/:id` - Get contact details with interviews and outreach
 - `POST /api/contacts` - Create contact
 - `PUT /api/contacts/:id` - Update contact
 - `DELETE /api/contacts/:id` - Delete contact
 
 ### Interviews
-- `GET /api/interviews` - List all interviews (supports `?status=`, `?contact_id=`)
+- `GET /api/interviews` - List all interviews (supports `?status=`, `?contact_id=`, `?limit=`, `?offset=`)
 - `GET /api/interviews/:id` - Get interview with prep notes
 - `POST /api/interviews` - Create interview
 - `PUT /api/interviews/:id` - Update interview
 - `DELETE /api/interviews/:id` - Delete interview
 
 ### Prep Notes
-- `GET /api/prep-notes` - List prep notes (supports `?interview_id=`, `?type=`)
+- `GET /api/prep-notes` - List prep notes (supports `?interview_id=`, `?type=`, `?limit=`, `?offset=`)
 - `GET /api/prep-notes/:id` - Get prep note
 - `POST /api/prep-notes` - Create prep note
 - `PUT /api/prep-notes/:id` - Update prep note
 - `DELETE /api/prep-notes/:id` - Delete prep note
 
 ### Outreach
-- `GET /api/outreach` - List outreach records (supports `?contact_id=`, `?type=`)
+- `GET /api/outreach` - List outreach records (supports `?contact_id=`, `?type=`, `?limit=`, `?offset=`)
 - `GET /api/outreach/:id` - Get outreach record
 - `POST /api/outreach` - Create outreach record
 - `PUT /api/outreach/:id` - Update outreach record
