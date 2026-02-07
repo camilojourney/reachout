@@ -100,9 +100,12 @@ app.get('/api/contacts', (req, res) => {
 // GET /api/contacts/:id - Get single contact
 app.get('/api/contacts/:id', (req, res) => {
     try {
-        const db = getDb();
         const id = parseInt(req.params.id, 10);
+        if (isNaN(id)) {
+            return res.status(400).json({ error: 'Invalid contact ID' });
+        }
 
+        const db = getDb();
         const contact = db.prepare('SELECT * FROM contacts WHERE id = ?').get(id);
         if (!contact) {
             return res.status(404).json({ error: 'Contact not found' });
@@ -186,9 +189,12 @@ app.put('/api/contacts/:id', (req, res) => {
 // DELETE /api/contacts/:id - Delete contact
 app.delete('/api/contacts/:id', (req, res) => {
     try {
-        const db = getDb();
         const id = parseInt(req.params.id, 10);
+        if (isNaN(id)) {
+            return res.status(400).json({ error: 'Invalid contact ID' });
+        }
 
+        const db = getDb();
         const existing = db.prepare('SELECT * FROM contacts WHERE id = ?').get(id);
         if (!existing) {
             return res.status(404).json({ error: 'Contact not found' });
@@ -240,9 +246,12 @@ app.get('/api/interviews', (req, res) => {
 // GET /api/interviews/:id - Get single interview with prep notes
 app.get('/api/interviews/:id', (req, res) => {
     try {
-        const db = getDb();
         const id = parseInt(req.params.id, 10);
+        if (isNaN(id)) {
+            return res.status(400).json({ error: 'Invalid interview ID' });
+        }
 
+        const db = getDb();
         const interview = db.prepare(`
             SELECT i.*, c.name as contact_name, c.company as contact_company, c.title as contact_title, c.email as contact_email
             FROM interviews i
@@ -300,14 +309,22 @@ app.post('/api/interviews', (req, res) => {
 app.put('/api/interviews/:id', (req, res) => {
     try {
         const id = parseInt(req.params.id, 10);
-        const db = getDb();
+        if (isNaN(id)) {
+            return res.status(400).json({ error: 'Invalid interview ID' });
+        }
 
+        const { valid, errors, sanitized } = validateInterview(req.body, true);
+        if (!valid) {
+            return validationError(res, errors);
+        }
+
+        const db = getDb();
         const existing = db.prepare('SELECT * FROM interviews WHERE id = ?').get(id);
         if (!existing) {
             return res.status(404).json({ error: 'Interview not found' });
         }
 
-        const { status, scheduled_at, completed_at, location, notes } = req.body;
+        const { status, scheduled_at, completed_at, location, notes } = sanitized;
 
         // Auto-set completed_at when status changes to completed
         let finalCompletedAt = completed_at;
@@ -350,9 +367,12 @@ app.put('/api/interviews/:id', (req, res) => {
 // DELETE /api/interviews/:id - Delete interview
 app.delete('/api/interviews/:id', (req, res) => {
     try {
-        const db = getDb();
         const id = parseInt(req.params.id, 10);
+        if (isNaN(id)) {
+            return res.status(400).json({ error: 'Invalid interview ID' });
+        }
 
+        const db = getDb();
         const existing = db.prepare('SELECT * FROM interviews WHERE id = ?').get(id);
         if (!existing) {
             return res.status(404).json({ error: 'Interview not found' });
@@ -399,9 +419,12 @@ app.get('/api/prep-notes', (req, res) => {
 // GET /api/prep-notes/:id - Get single prep note
 app.get('/api/prep-notes/:id', (req, res) => {
     try {
-        const db = getDb();
         const id = parseInt(req.params.id, 10);
+        if (isNaN(id)) {
+            return res.status(400).json({ error: 'Invalid prep note ID' });
+        }
 
+        const db = getDb();
         const note = db.prepare('SELECT * FROM prep_notes WHERE id = ?').get(id);
         if (!note) {
             return res.status(404).json({ error: 'Prep note not found' });
@@ -445,14 +468,33 @@ app.post('/api/prep-notes', (req, res) => {
 app.put('/api/prep-notes/:id', (req, res) => {
     try {
         const id = parseInt(req.params.id, 10);
-        const db = getDb();
+        if (isNaN(id)) {
+            return res.status(400).json({ error: 'Invalid prep note ID' });
+        }
 
+        // For updates, type and content are optional - validate what's provided
+        const errors = [];
+        if (req.body.type !== undefined) {
+            const validTypes = ['question', 'research', 'insight'];
+            if (!validTypes.includes(req.body.type)) {
+                errors.push(`Type must be one of: ${validTypes.join(', ')}`);
+            }
+        }
+        if (req.body.content !== undefined && (typeof req.body.content !== 'string' || req.body.content.trim() === '')) {
+            errors.push('Content cannot be empty');
+        }
+        if (errors.length > 0) {
+            return validationError(res, errors);
+        }
+
+        const db = getDb();
         const existing = db.prepare('SELECT * FROM prep_notes WHERE id = ?').get(id);
         if (!existing) {
             return res.status(404).json({ error: 'Prep note not found' });
         }
 
-        const { type, content } = req.body;
+        const type = req.body.type;
+        const content = req.body.content ? req.body.content.trim().slice(0, 10000) : undefined;
 
         db.prepare(`
             UPDATE prep_notes SET
@@ -472,9 +514,12 @@ app.put('/api/prep-notes/:id', (req, res) => {
 // DELETE /api/prep-notes/:id - Delete prep note
 app.delete('/api/prep-notes/:id', (req, res) => {
     try {
-        const db = getDb();
         const id = parseInt(req.params.id, 10);
+        if (isNaN(id)) {
+            return res.status(400).json({ error: 'Invalid prep note ID' });
+        }
 
+        const db = getDb();
         const existing = db.prepare('SELECT * FROM prep_notes WHERE id = ?').get(id);
         if (!existing) {
             return res.status(404).json({ error: 'Prep note not found' });
@@ -526,9 +571,12 @@ app.get('/api/outreach', (req, res) => {
 // GET /api/outreach/:id - Get single outreach record
 app.get('/api/outreach/:id', (req, res) => {
     try {
-        const db = getDb();
         const id = parseInt(req.params.id, 10);
+        if (isNaN(id)) {
+            return res.status(400).json({ error: 'Invalid outreach record ID' });
+        }
 
+        const db = getDb();
         const record = db.prepare(`
             SELECT o.*, c.name as contact_name, c.company as contact_company
             FROM outreach o
@@ -584,14 +632,35 @@ app.post('/api/outreach', (req, res) => {
 app.put('/api/outreach/:id', (req, res) => {
     try {
         const id = parseInt(req.params.id, 10);
-        const db = getDb();
+        if (isNaN(id)) {
+            return res.status(400).json({ error: 'Invalid outreach record ID' });
+        }
 
+        // Validate update fields
+        const errors = [];
+        const validTypes = ['initial', 'follow_up', 'thank_you'];
+        const validChannels = ['email', 'linkedin', 'phone', 'other'];
+
+        if (req.body.type !== undefined && !validTypes.includes(req.body.type)) {
+            errors.push(`Type must be one of: ${validTypes.join(', ')}`);
+        }
+        if (req.body.channel !== undefined && !validChannels.includes(req.body.channel)) {
+            errors.push(`Channel must be one of: ${validChannels.join(', ')}`);
+        }
+        if (errors.length > 0) {
+            return validationError(res, errors);
+        }
+
+        const db = getDb();
         const existing = db.prepare('SELECT * FROM outreach WHERE id = ?').get(id);
         if (!existing) {
             return res.status(404).json({ error: 'Outreach record not found' });
         }
 
         const { type, channel, response_received, response_at, notes } = req.body;
+
+        // Only update response_received if explicitly provided
+        const finalResponseReceived = response_received !== undefined ? (response_received ? 1 : 0) : null;
 
         // Auto-set response_at when marking response received
         let finalResponseAt = response_at;
@@ -608,7 +677,7 @@ app.put('/api/outreach/:id', (req, res) => {
                 notes = COALESCE(?, notes),
                 updated_at = ?
             WHERE id = ?
-        `).run(type, channel, response_received ? 1 : 0, finalResponseAt, notes, now(), id);
+        `).run(type, channel, finalResponseReceived, finalResponseAt, notes, now(), id);
 
         const record = db.prepare(`
             SELECT o.*, c.name as contact_name, c.company as contact_company
@@ -626,9 +695,12 @@ app.put('/api/outreach/:id', (req, res) => {
 // DELETE /api/outreach/:id - Delete outreach record
 app.delete('/api/outreach/:id', (req, res) => {
     try {
-        const db = getDb();
         const id = parseInt(req.params.id, 10);
+        if (isNaN(id)) {
+            return res.status(400).json({ error: 'Invalid outreach record ID' });
+        }
 
+        const db = getDb();
         const existing = db.prepare('SELECT * FROM outreach WHERE id = ?').get(id);
         if (!existing) {
             return res.status(404).json({ error: 'Outreach record not found' });
