@@ -87,5 +87,5 @@ Configured in `.mcp.json` - filesystem, memory, GitHub access.
 ## Project Overrides
 
 - Pre-merge CLAUDE notes (if present):
-- `docs/project-overrides/CLAUDE.premerge.md`
+- none
 - Use repository READMEs and docs for feature-level constraints before implementation.

@@ -171,15 +171,3 @@ npm run db:init
 ## License
 
 MIT
-
-## AI Framework Integration
-
-This repository includes a merged AI workflow framework for consistent execution across tools.
-
-- Universal entrypoint: `AGENTS.md`
-- Quick runtime context: `CLAUDE.md`
-- Framework architecture: `ARCHITECTURE.md`
-- AI standards/workflows: `.ai/`
-- Human playbooks: `docs/playbooks/`
-
-Project-specific pre-merge docs are preserved in `docs/project-overrides/` when applicable.

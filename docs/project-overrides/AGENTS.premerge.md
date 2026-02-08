@@ -135,6 +135,6 @@ See `.ai/decision-boundaries.md` for full authority matrix.
 ## Project Overrides
 
 - Pre-merge AGENTS (if present):
-- `docs/project-overrides/AGENTS.premerge.md`
+- none
 - Project-specific context source: `.ai/contexts/reachout.md`
 - Existing repository docs remain authoritative for business/domain details.
