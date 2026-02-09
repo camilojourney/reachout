@@ -6,8 +6,8 @@
   "scripts": {
     "start": "node api-server.js",
     "dev": "node api-server.js",
-    "test": "node --test tests/**/*.test.js",
-    "test:coverage": "node --test --experimental-test-coverage tests/**/*.test.js",
+    "test": "node --test tests/*.test.js",
+    "test:coverage": "node --test --experimental-test-coverage tests/*.test.js",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "db:init": "node scripts/init-db.js"
