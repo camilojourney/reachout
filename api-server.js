@@ -21,6 +21,8 @@ const {
     VALID_CHANNELS
 } = require('./lib/validation');
 
+const { researchPerson } = require('./lib/research');
+
 const app = express();
 const PORT = process.env.PORT || 3458;
 
@@ -793,6 +795,63 @@ app.delete('/api/outreach/:id', (req, res) => {
         res.status(204).send();
     } catch (error) {
         handleError(res, error, 'Failed to delete outreach record', req.requestId);
+    }
+});
+
+// ============================================
+// RESEARCH API
+// ============================================
+
+// POST /api/research - Research person and store dossier alongside contact
+app.post('/api/research', async (req, res) => {
+    try {
+        const { name, company, context = '' } = req.body;
+        if (!name?.trim() || !company?.trim()) {
+            return res.status(400).json({ error: 'name and company are required' });
+        }
+
+        const db = getDb();
+        const trimmedName = name.trim();
+        const trimmedCompany = company.trim();
+
+        // Find existing contact (case insensitive)
+        let contact = db.prepare(
+            'SELECT * FROM contacts WHERE LOWER(name) = LOWER(?) AND LOWER(company) = LOWER(?)'
+        ).get(trimmedName, trimmedCompany);
+
+        const dossier = await researchPerson({
+            name: trimmedName,
+            company: trimmedCompany,
+            context: context?.trim() || '',
+        });
+
+        if (contact) {
+            // Update
+            db.prepare(
+                'UPDATE contacts SET research_dossier = ?, updated_at = ? WHERE id = ?'
+            ).run(JSON.stringify(dossier), now(), contact.id);
+            contact.research_dossier = JSON.stringify(dossier);
+        } else {
+            // Create new contact
+            const result = db.prepare(
+                'INSERT INTO contacts (name, company, research_dossier, connection_type, relationship_strength, notes, created_at, updated_at) ' +
+                'VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+            ).run(
+                trimmedName,
+                trimmedCompany,
+                JSON.stringify(dossier),
+                'cold',
+                1,
+                'Auto-generated from research',
+                now(),
+                now()
+            );
+            contact = db.prepare('SELECT * FROM contacts WHERE id = ?').get(result.lastInsertRowid);
+        }
+
+        res.json({ success: true, contact, dossier });
+    } catch (error) {
+        handleError(res, error, 'Failed to research person', req.requestId);
     }
 });
 

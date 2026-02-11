@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔍 Research Person - Reachout</title>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --gray-900: #111827;
+            --gray-700: #374151;
+            --gray-300: #d1d5db;
+            --gray-100: #f3f4f6;
+            --gray-50: #f9fafb;
+        }
+        body { font-family: -apple-system, sans-serif; background: var(--gray-50); color: var(--gray-900); line-height: 1.6; margin: 0; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        h1 { color: var(--primary); }
+        form { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 30px; }
+        .form-row { display: flex; flex-direction: column; gap: 20px; }
+        label { font-weight: 600; color: var(--gray-700); }
+        input, textarea { padding: 12px; border: 1px solid var(--gray-300); border-radius: 8px; font-size: 16px; transition: border-color 0.2s; }
+        input:focus, textarea:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
+        textarea { min-height: 100px; resize: vertical; }
+        button { background: var(--primary); color: white; padding: 14px 28px; border: none; border-radius: 8px; font-size: 16px; cursor: pointer; transition: background 0.2s; }
+        button:hover { background: #1d4ed8; }
+        button:disabled { background: var(--gray-300); cursor: not-allowed; }
+        #results { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+        #results h2 { color: #16a34a; }
+        #results h3 { color: var(--primary); margin-top: 24px; margin-bottom: 12px; }
+        #results ul { padding-left: 20px; }
+        #results li { margin-bottom: 8px; }
+        .loading { text-align: center; color: var(--gray-700); }
+        .error { color: #dc2626; background: #fef2f2; padding: 20px; border-radius: 8px; border-left: 4px solid #dc2626; }
+        .contact-link { color: var(--primary); text-decoration: none; font-weight: 600; }
+        .contact-link:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Research Person</h1>
+        <p>Enter name + company to generate an outreach dossier with web research & AI synthesis.</p>
+        
+        <form id="research-form">
+            <div class="form-row">
+                <div>
+                    <label for="name">Full Name *</label>
+                    <input id="name" type="text" placeholder="e.g. Jane Doe" required>
+                </div>
+                <div>
+                    <label for="company">Company *</label>
+                    <input id="company" type="text" placeholder="e.g. OpenAI" required>
+                </div>
+                <div>
+                    <label for="context">Outreach Context (optional)</label>
+                    <textarea id="context" placeholder="e.g. Interested in ML roles, alumni connection..."></textarea>
+                </div>
+            </div>
+            <button type="submit">🚀 Research & Generate Dossier</button>
+        </form>
+
+        <div id="results" style="display: none;"></div>
+    </div>
+
+    <script>
+        document.getElementById('research-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const button = e.target.querySelector('button');
+            const results = document.getElementById('results');
+            button.disabled = true;
+            button.textContent = 'Researching... 🔎';
+            results.style.display = 'block';
+            results.innerHTML = '<div class="loading">Searching web... Analyzing with AI...</div>';
+
+            try {
+                const data = {
+                    name: document.getElementById('name').value.trim(),
+                    company: document.getElementById('company').value.trim(),
+                    context: document.getElementById('context').value.trim()
+                };
+
+                const res = await fetch('/api/research', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+
+                if (!res.ok) {
+                    const err = await res.json();
+                    throw new Error(err.error || 'Research failed');
+                }
+
+                const { dossier, contact } = await res.json();
+
+                let html = `
+                    <h2>✅ Dossier Generated Successfully!</h2>
+                    <p><strong>Contact Saved:</strong> <a href="#" class="contact-link" onclick="window.open('/','_self')">${contact.name} at ${contact.company}</a> 
+                    (ID: ${contact.id} | <em>View in Contacts tab</em>)</p>
+                    <h3>📄 Bio</h3>
+                    <p>${dossier.bio.replace(/\n/g, '<br>')}</p>
+                    <h3>💼 Role</h3>
+                    <p>${dossier.role}</p>
+                `;
+
+                if (dossier.linkedin_url) {
+                    html += `<h3>🔗 LinkedIn</h3><p><a href="${dossier.linkedin_url}" target="_blank">${dossier.linkedin_url}</a></p>`;
+                }
+
+                html += `
+                    <h3>🎯 Interests</h3>
+                    <ul>${dossier.interests.map(i => `<li>${i}</li>`).join('')}</ul>
+                    <h3>📈 Recent Activity</h3>
+                    <ul>${(dossier.recent_activity || []).map(a => 
+                        `<li><strong>${a.title}</strong> <em>(${a.date})</em>${a.url ? ` <a href="${a.url}" target="_blank">[link]</a>` : ''}<br>
+                        ${a.summary}</li>`
+                    ).join('') || '<li>None found</li>'}</ul>
+                    <h3>🤝 Mutual Connections</h3>
+                    <p>${dossier.mutual_connections}</p>
+                    <h3>💬 Talking Points</h3>
+                    <ol>${dossier.talking_points.map(p => `<li>${p}</li>`).join('')}</ol>
+                `;
+
+                results.innerHTML = html;
+            } catch (error) {
+                results.innerHTML = `<div class="error">❌ ${error.message}<br><small>Check OPENAI_API_KEY & BRAVE_API_KEY env vars.</small></div>`;
+            } finally {
+                button.disabled = false;
+                button.textContent = '🚀 Research & Generate Dossier';
+            }
+        });
+    </script>
+</body>
+</html>

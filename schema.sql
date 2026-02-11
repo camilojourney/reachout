@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS contacts (
     connection_type TEXT CHECK(connection_type IN ('alumni', 'referral', 'cold', 'friend', 'colleague', 'other')) DEFAULT 'other',
     relationship_strength INTEGER CHECK(relationship_strength BETWEEN 1 AND 5) DEFAULT 1,
     notes TEXT,
+    research_dossier TEXT,
     created_at TEXT DEFAULT (datetime('now')),
     updated_at TEXT DEFAULT (datetime('now'))
 );
