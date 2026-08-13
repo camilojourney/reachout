@@ -24,7 +24,7 @@ Reachout is **Networking and informational interview tracker for job seekers.**.
 | `npm test` | Run tests |
 | `npx eslint .` | Lint and auto-fix |
 
-Clean clone: `npm install` then `npm test`. Native `better-sqlite3` must install for the current Node (see `package.json`); API tests spawn the server via `tests/helpers/start-api-server.js`.
+Clean clone: `npm install` then `npm test`. Native `better-sqlite3` must install for the current Node (see `package.json`); API tests spawn the server via `tests/helpers/start-api-server.js`. Node 20 remains supported and may compile that binding from source (`better-sqlite3@12.11.1` has no Node 20 prebuild).
 
 ## Tech Stack
 
@@ -140,10 +140,3 @@ See `.ai/decision-boundaries.md` for full authority matrix.
 - `docs/project-overrides/AGENTS.premerge.md`
 - Project-specific context source: `.ai/contexts/reachout.md`
 - Existing repository docs remain authoritative for business/domain details.
-
-## Maintaining this file
-
-Keep this file for knowledge useful to almost every future agent session in this project.
-Do not repeat what the codebase already shows; point to the authoritative file or command instead.
-Prefer rewriting or pruning existing entries over appending new ones.
-When updating this file, preserve this bar for all agents and keep entries concise.
