@@ -24,6 +24,8 @@ Reachout is **Networking and informational interview tracker for job seekers.**.
 | `npm test` | Run tests |
 | `npx eslint .` | Lint and auto-fix |
 
+Clean clone: `npm install` then `npm test`. Native `better-sqlite3` must install for the current Node (see `package.json`); API tests spawn the server via `tests/helpers/start-api-server.js`. Node 20 remains supported and may compile that binding from source (`better-sqlite3@12.11.1` has no Node 20 prebuild).
+
 ## Tech Stack
 
 - **Framework:** Node.js API + Static Frontend

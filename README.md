@@ -144,7 +144,12 @@ reachout/
 
 ## Development
 
+Requires Node.js 20 or later (`engines` in `package.json`). `npm install` must complete successfully before tests (it installs `express` and the native `better-sqlite3` binding). `better-sqlite3@12.11.1` ships prebuilds for Node 22, 24, 25, and 26; Node 20 remains supported and may compile the native binding from source.
+
 ```bash
+# Install dependencies
+npm install
+
 # Run tests
 npm test
 
