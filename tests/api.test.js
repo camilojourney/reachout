@@ -10,6 +10,8 @@ const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
 
+const { startApiServer } = require('./helpers/start-api-server');
+
 const TEST_PORT = 3459;
 const TEST_DB = path.join(__dirname, 'test.db');
 const BASE_URL = `http://localhost:${TEST_PORT}`;
@@ -60,24 +62,9 @@ describe('API Tests', () => {
         process.env.PORT = TEST_PORT;
         process.env.DB_PATH = TEST_DB;
 
-        // Import and start server (need to do this after setting env vars)
-        // We need to actually start the server
-        return new Promise((resolve) => {
-            const { spawn } = require('node:child_process');
-            server = spawn('node', ['api-server.js'], {
-                cwd: path.join(__dirname, '..'),
-                env: { ...process.env, PORT: TEST_PORT, DB_PATH: TEST_DB }
-            });
-
-            server.stdout.on('data', (data) => {
-                if (data.toString().includes('running')) {
-                    setTimeout(resolve, 500); // Give server time to fully initialize
-                }
-            });
-
-            server.stderr.on('data', (data) => {
-                console.error('Server error:', data.toString());
-            });
+        server = await startApiServer({
+            port: TEST_PORT,
+            dbPath: TEST_DB
         });
     });
 

@@ -144,7 +144,12 @@ reachout/
 
 ## Development
 
+Requires Node.js 20 or later. `npm install` must complete successfully before tests (it installs `express` and the native `better-sqlite3` binding).
+
 ```bash
+# Install dependencies
+npm install
+
 # Run tests
 npm test
 
